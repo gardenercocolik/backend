@@ -1,0 +1,7 @@
+Django>=5.1.1
+gunicorn>=20.1.0
+mysqlclient>=2.0.3
+djangorestframework
+djangorestframework-jwt
+django-cors-headers
+pillow
