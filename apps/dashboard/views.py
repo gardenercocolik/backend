@@ -6,31 +6,42 @@ from django.utils import timezone
 from .models import ReportCompetition, RecordCompetition, MainCompetition, ProofOfRecord, PhotoOfRecord, CertificateOfRecord
 from .unit import get_user, check_login
 
+from users.models import CustomUser, Student, Teacher
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-# 记录列表
 class RecordListView(View):
-    def post(self,request):
-        user = get_user(request)
-        student = user.student
+    def post(self, request):
+        user = get_user(request)  # 获取登录用户
+        check_login(user)  # 检查登录状态
+
+        # 确保用户是学生
+        if user.identity != CustomUser.STUDENT:
+            return JsonResponse({'error': '该用户不是学生'}, status=403)
+
+        # 使用新建立的关系
+        try:
+            student = user.student_profile  # 使用 'student_profile' 获取对应的学生
+        except Student.DoesNotExist:
+            return JsonResponse({'error': '该用户没有关联的学生档案'}, status=404)
+
+        # 获取报备记录
+        reports = []  # 初始化报备记录列表
         data = ReportCompetition.objects.filter(student=student)
 
-        reports = []
         for report in data.values():
-            reports.append(
-                {
-                    'ReportID': report['ReportID'],
-                    'name': report['name'],
-                    'level': report['level'],
-                    'report_date': report['report_date'].strftime('%Y-%m-%d %H:%M'),  # 格式化为 YYYY-MM-DD HH:MM
-                    'status': report['status']
-                }
-            )
+            reports.append({
+                'ReportID': report['ReportID'],
+                'name': report['name'],
+                'level': report['level'],
+                'report_date': report['report_date'].strftime('%Y-%m-%d %H:%M'),
+                'status': report['status']
+            })
 
-        return JsonResponse({'data': reports})
+        return JsonResponse({'data': reports})  # 返回报备记录
+
     
 # 记录提交
 class RecordSubmitView(View):
@@ -137,13 +148,21 @@ class ReportListView(View):
     def post(self, request):
         user = get_user(request)  # 获取登录用户
         check_login(user)  # 检查登录状态
-        student = user.student
         
+        # 确保用户是学生
+        if user.identity != CustomUser.STUDENT:
+            return JsonResponse({'error': '该用户不是学生'}, status=403)
+        
+        try:
+            student = user.student_profile  # 获取对应的学生
+        except Student.DoesNotExist:
+            return JsonResponse({'error': '该用户没有关联的学生档案'}, status=404)
+
         # 获取报备记录
+        reports = []  # 初始化报备记录列表
         data = ReportCompetition.objects.filter(student=student)
 
         # 通过自定义序列化处理日期格式
-        reports = []
         for report in data.values():
             reports.append({
                 'ReportID': report['ReportID'],
@@ -158,8 +177,9 @@ class ReportListView(View):
                 'student_id': report['student_id'],
             })
 
-        #logger.info(f'Retrieved reports: {reports}')
         return JsonResponse({'data': reports})  # 返回报备记录
+
+
 
 # 报备创建
 class ReportCreateView(View):
