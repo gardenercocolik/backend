@@ -120,14 +120,14 @@ STATIC_URL = "/static/"
 # CORS
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:18080',
-    'http://127.0.0.1:18080',
+    'http://localhost:15173',
+    'http://127.0.0.1:15173',
 ]
 
 # CSRF
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:18080",
-    "http://127.0.0.1:18080",
+    "http://localhost:15173",
+    "http://127.0.0.1:15173",
 ]
 
 

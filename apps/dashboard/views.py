@@ -2,14 +2,16 @@ from django.http import JsonResponse
 from django.views import View
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.utils import timezone
+from django.shortcuts import get_object_or_404
 
 from .models import ReportCompetition, RecordCompetition, MainCompetition, ProofOfRecord, PhotoOfRecord, CertificateOfRecord
 from .unit import get_user, check_login
 
+
 from users.models import CustomUser, Student, Teacher
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("django")
 
 
 class RecordListView(View):
@@ -48,7 +50,7 @@ class RecordSubmitView(View):
 
     def post(self, request):
         user = get_user(request)
-        student = user.student
+        student = user.student_profile  # 获取对应的学生
         
         try:
             # 从 POST 数据中获取值
@@ -199,7 +201,9 @@ class ReportCreateView(View):
                 return JsonResponse({'error': '所有字段都是必填的'}, status=400)
 
             # 根据当前用户获取学生
-            student = user.student
+            student = user.student_profile
+
+            # 判断是否为其他比赛
             is_other = (level == "other")
 
             # 获取对应的比赛和负责教师
@@ -242,6 +246,7 @@ class ReturnCompetitionNameView(View):
         
         # 直接通过 request.POST 获取表单数据
         level = request.POST.get("level")
+        logger.info(f"收到的level: {level}")
         
         if not level:
             return JsonResponse({'error': '缺少必要的字段!'}, status=400)
@@ -251,3 +256,32 @@ class ReturnCompetitionNameView(View):
         
         return JsonResponse({'data': list(competition_names)})  # 返回竞赛名列表
 
+# 获取用户信息 对应fetchUserInfo
+class GetUserInfoView(View):
+    def post(self, request):
+        #获取登录用户
+        user = get_user(request)
+        check_login(user)
+
+        info = {
+            'username': user.username,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'email': user.email,
+            'phone': user.phone,
+        }
+
+        if user.identity == CustomUser.STUDENT:
+            student = user.student_profile     # 获取对应的学生
+            info['userId'] = student.student_id
+        elif user.identity == CustomUser.TEACHER:
+            teacher = user.teacher_profile     # 获取对应的教师
+            info['userId'] = teacher.teacher_id
+
+        # 替换任何空值为 "待输入"
+        for key, value in info.items():
+            if value is None or value == '':
+                info[key] = "待输入"
+
+
+        return JsonResponse({'message': '成功', 'data': info}, status=200)

@@ -37,10 +37,10 @@ class RegisterView(View):
 
             # 根据身份创建对应类型的用户记录
             if identity == 'student':
-                student_id = request.POST.get('student_id', user.id)  # 如果未提供student_id，则使用user.id
+                student_id = "00000000"  # 学生 ID 未提供时使用默认值
                 Student.objects.create(user=user, student_id=student_id)
             elif identity == 'teacher':
-                teacher_id = request.POST.get('teacher_id', user.id)  # 如果未提供teacher_id，则使用user.id
+                teacher_id = "11111111"  # 教师 ID 未提供时使用默认值
                 Teacher.objects.create(user=user, teacher_id=teacher_id)
             else:
                 user.delete()  # 删除创建的用户以保持数据库的一致性
@@ -97,13 +97,8 @@ class LoginView(View):
 class LogoutView(View):
     def post(self, request):
         try:
-            session_key = request.session.session_key
-
-            if session_key:
-                # 将会话数据标记为删除
-                request.session.delete()
-                # 执行修改操作，确保会话的修改被保存
-                request.session.modified = True
+            # 清除当前用户的会话数据，并创建新的会话 ID
+            request.session.flush()  # 更新此行以正确清理登录状态
 
             return JsonResponse({
                 'code': 200,

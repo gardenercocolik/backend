@@ -9,7 +9,8 @@ class CustomUser(AbstractUser):  # 用户账号信息，用于登录注册
         (TEACHER, 'Teacher'),
     ]
 
-    identity = models.CharField(max_length=7, choices=IDENTITY_CHOICES, default=STUDENT)  # 身份
+    identity = models.CharField(max_length=7, choices=IDENTITY_CHOICES, default=STUDENT, help_text="身份")  # 身份
+    phone = models.CharField(max_length=11, null=True, blank=True, help_text="手机号码")
 
     # 重写 groups 和 user_permissions 字段
     groups = models.ManyToManyField(
