@@ -285,3 +285,37 @@ class GetUserInfoView(View):
 
 
         return JsonResponse({'message': '成功', 'data': info}, status=200)
+
+class UpdateUserInfoView(View):
+    def post(self, request):
+        user = get_user(request)
+        check_login(user)
+
+        try:
+            # 直接从 request.POST 中获取数据
+            logger.info(f"收到的参数: {request.POST}")
+            first_name = request.POST.get('first_name')
+            last_name = request.POST.get('last_name')
+            userId = request.POST.get('userId')
+            email = request.POST.get('email')
+            phone = request.POST.get('phone')
+
+            user.first_name = first_name
+            user.last_name= last_name
+            user.email = email
+            user.phone = phone
+            user.save()
+
+            if user.identity == CustomUser.STUDENT:
+                student = user.student_profile
+                student.student_id = userId
+                student.save()
+            elif user.identity == CustomUser.TEACHER:
+                teacher = user.teacher_profile
+                teacher.teacher_id = userId
+                teacher.save()
+
+            return JsonResponse({'message': '信息更新成功!', 'code': 201})
+
+        except Exception as e:
+            return JsonResponse({'error': str(e)})
