@@ -35,7 +35,7 @@ def bulk_insert_data():
         reportcompetition_data = []
 
         for i in range(12):
-             # 创建教师用户
+            # 创建教师用户
             password_hashed =  make_password('!Q2w3e4r') 
             user = CustomUser.objects.create(username=f"tea{i + 1}", password = password_hashed, identity=CustomUser.TEACHER)
             teacher = Teacher.objects.create(user=user, teacher_id=f"T{user.id:03d}")

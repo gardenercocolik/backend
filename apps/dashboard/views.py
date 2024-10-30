@@ -2,49 +2,68 @@ from django.http import JsonResponse
 from django.views import View
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.utils import timezone
-from django.shortcuts import get_object_or_404
 
 from .models import ReportCompetition, RecordCompetition, MainCompetition, ProofOfRecord, PhotoOfRecord, CertificateOfRecord
 from .unit import get_user, check_login
 
 
 from users.models import CustomUser, Student, Teacher
+import json
 import logging
 
 logger = logging.getLogger("django")
 
-
+# 记录列表
 class RecordListView(View):
     def post(self, request):
         user = get_user(request)  # 获取登录用户
         check_login(user)  # 检查登录状态
 
-        # 确保用户是学生
-        if user.identity != CustomUser.STUDENT:
-            return JsonResponse({'error': '该用户不是学生'}, status=403)
+        if user.identity == CustomUser.STUDENT:
+            # 使用新建立的关系
+            try:
+                student = user.student_profile  # 使用 'student_profile' 获取对应的学生
+                data = ReportCompetition.objects.filter(student=student)
+                reports = []  # 初始化报备记录列表
+                for report in data.values():
+                    reports.append({
+                        'ReportID': report['ReportID'],
+                        'name': report['name'],
+                        'level': report['level'],
+                        'report_date': report['report_date'].strftime('%Y-%m-%d %H:%M'),
+                        'status': report['status']
+                    })
+                return JsonResponse({'data': reports})  # 返回报备记录
+            except Student.DoesNotExist:
+                return JsonResponse({'error': '该用户没有关联的学生档案'}, status=404)
+        elif user.identity == CustomUser. TEACHER:
+            try:
+                teacher = user.teacher_profile
+                reports = ReportCompetition.objects.filter(teacher=teacher, status="pending_record")
+            except Teacher.DoesNotExist:
+                return JsonResponse({'error': '该用户没有关联的教师档案'}, status=404)
+        
 
-        # 使用新建立的关系
+        
+
+# 记录同意
+class RecordApproveView(View):
+    def post(self, request):
+        body = json.loads(request.body)
+        ReportID = body.get('ReportID')
+        logger.info(f"收到的参数: {ReportID}")
+
+        # 执行批准操作
         try:
-            student = user.student_profile  # 使用 'student_profile' 获取对应的学生
-        except Student.DoesNotExist:
-            return JsonResponse({'error': '该用户没有关联的学生档案'}, status=404)
-
-        # 获取报备记录
-        reports = []  # 初始化报备记录列表
-        data = ReportCompetition.objects.filter(student=student)
-
-        for report in data.values():
-            reports.append({
-                'ReportID': report['ReportID'],
-                'name': report['name'],
-                'level': report['level'],
-                'report_date': report['report_date'].strftime('%Y-%m-%d %H:%M'),
-                'status': report['status']
-            })
-
-        return JsonResponse({'data': reports})  # 返回报备记录
-
-    
+            record = RecordCompetition.objects.get(ReportID=ReportID)
+            record.status = "approved_record"
+            record.save()
+            return JsonResponse({'message': '记录已批准', 'id': ReportID})
+        except ReportCompetition.DoesNotExist:
+            return JsonResponse({'message': '记录不存在', 'id': None})
+        except Exception as e:
+            return JsonResponse({'message': '更新失败', 'id': None, 'error': str(e)})   
+# 记录拒绝    
 # 记录提交
 class RecordSubmitView(View):
 
@@ -56,6 +75,7 @@ class RecordSubmitView(View):
             # 从 POST 数据中获取值
             ReportID = request.POST.get("ReportID")
             reimbursement = request.POST.get("reimbursement")
+            logger.info(f"收到的参数: ReportID={ReportID}, reimbursement={reimbursement}")
             summary = request.POST.get("summary")
 
             # 处理上传的文件
@@ -82,14 +102,15 @@ class RecordSubmitView(View):
             # 创建新的 competition_record 对象（无论是否找到并删除了已有记录）
             competition_record = RecordCompetition(
                 report_competition=report_competition,
+                # 更新记录的基础字段
+                submission_time=timezone.now(),  # 手动赋值提交时间
+                summary = summary,
+                reimbursement_amount = reimbursement,
             )
             competition_record.save()  # 保存新创建的对象
             logger.info(f"Created new record for report ID {competition_record.RecordID}")
 
-            # 更新记录的基础字段
-            competition_record.submission_time=timezone.now()  # 手动赋值提交时间
-            competition_record.summary = summary
-            competition_record.reimbursement_amount = reimbursement
+            
 
             # 验证文件的扩展名和大小
             def validate_files(files, file_type):
@@ -151,21 +172,27 @@ class ReportListView(View):
         user = get_user(request)  # 获取登录用户
         check_login(user)  # 检查登录状态
         
-        # 确保用户是学生
-        if user.identity != CustomUser.STUDENT:
-            return JsonResponse({'error': '该用户不是学生'}, status=403)
+        if user.identity == CustomUser.STUDENT:
+            # 使用新建立的关系
+            try:
+                student = user.student_profile  # 使用 'student_profile' 获取对应的学生
+                data = ReportCompetition.objects.filter(student=student)
+            except Student.DoesNotExist:
+                return JsonResponse({'error': '该用户没有关联的学生档案'}, status=404)
+        elif user.identity == CustomUser. TEACHER:
+            try:
+                teacher = user.teacher_profile
+                data = ReportCompetition.objects.filter(teacher=teacher)
+            except Teacher.DoesNotExist:
+                return JsonResponse({'error': '该用户没有关联的教师档案'}, status=404)
         
-        try:
-            student = user.student_profile  # 获取对应的学生
-        except Student.DoesNotExist:
-            return JsonResponse({'error': '该用户没有关联的学生档案'}, status=404)
 
-        # 获取报备记录
         reports = []  # 初始化报备记录列表
-        data = ReportCompetition.objects.filter(student=student)
 
         # 通过自定义序列化处理日期格式
         for report in data.values():
+            student = Student.objects.get(user_id=report['student_id'])
+            user = student.user
             reports.append({
                 'ReportID': report['ReportID'],
                 'name': report['name'],
@@ -176,12 +203,47 @@ class ReportListView(View):
                 'competition_start': report['competition_start'].strftime('%Y-%m-%d %H:%M'),  # 格式化为 YYYY-MM-DD HH:MM
                 'competition_end': report['competition_end'].strftime('%Y-%m-%d %H:%M'),  # 格式化为 YYYY-MM-DD HH:MM
                 'teacher_id': report['teacher_id'],
-                'student_id': report['student_id'],
+                'student_id': student.student_id,
+                'student_name': user.last_name + user.first_name
             })
 
         return JsonResponse({'data': reports})  # 返回报备记录
 
+# 报备同意
+class ReportApproveView(View):
+    def post(self, request):
+        body = json.loads(request.body)
+        ReportID = body.get('ReportID')
+        logger.info(f"收到的参数: {ReportID}")
 
+        # 执行批准操作
+        try:
+            report = ReportCompetition.objects.get(ReportID=ReportID)
+            report.status = "approved_report"
+            report.save()
+            return JsonResponse({'message': '记录已批准', 'id': ReportID})
+        except ReportCompetition.DoesNotExist:
+            return JsonResponse({'message': '记录不存在', 'id': None})
+        except Exception as e:
+            return JsonResponse({'message': '更新失败', 'id': None, 'error': str(e)})   
+         
+# 报备拒绝
+class ReportRejectView(View):
+    def post(self, request):
+        body = json.loads(request.body)
+        ReportID = body.get('ReportID')
+        logger.info(f"收到的参数: {ReportID}")
+
+        # 执行拒绝操作
+        try:
+            report = ReportCompetition.objects.get(ReportID=ReportID)
+            report.status = "rejected_report"
+            report.save()
+            return JsonResponse({'message': '记录已拒绝', 'id': ReportID})
+        except ReportCompetition.DoesNotExist:
+            return JsonResponse({'message': '记录不存在', 'id': None})
+        except Exception as e:
+            return JsonResponse({'message': '更新失败', 'id': None, 'error': str(e)})   
 
 # 报备创建
 class ReportCreateView(View):

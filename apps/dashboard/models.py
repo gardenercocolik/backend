@@ -21,17 +21,6 @@ STATUS_CHOICES = [
     ('rejected_record', '竞赛记录审核不通过'),
 ]
 
-def validate_file_type(ext, valid_types):
-    """通用文件类型验证"""
-    return ext.lower() in valid_types
-
-def generate_upload_path(instance, filename, subfolder, valid_types):
-    ext = filename.split('.')[-1].lower()
-    if not validate_file_type(ext, valid_types):
-        raise ValidationError(f"{ext} 不符合文件格式规范。")
-    unique_filename = f"{uuid.uuid4()}_{os.path.splitext(filename)[0]}.{ext}"
-    return os.path.join(subfolder, unique_filename)
-
 
 class MainCompetition(models.Model):        
     competition_id = models.AutoField(primary_key=True)
@@ -40,7 +29,6 @@ class MainCompetition(models.Model):
     teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, null=True)
 
     class Meta:
-        db_table = 'Maincompetition'
         constraints = [
             models.CheckConstraint(check=Q(level__in=[choice[0] for choice in LEVEL_CHOICES]), name='valid_level_constraint')
         ]
@@ -49,88 +37,112 @@ class MainCompetition(models.Model):
         return self.name
 
 
-class ReportCompetition(models.Model):      
-    ReportID = models.AutoField(primary_key=True)
-    name = models.CharField(max_length=255)
-    level = models.CharField(max_length=10, choices=LEVEL_CHOICES)
-    is_other = models.BooleanField(default=False)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending_report')
-    report_date = models.DateTimeField(auto_now_add=True)
-    competition_start = models.DateTimeField()
-    competition_end = models.DateTimeField()
-    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, null=True)
-    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+class ReportCompetition(models.Model):      #竞赛报备记录
 
+    ReportID = models.AutoField(primary_key=True)  # 主键
+    name = models.CharField(max_length=255)  # 竞赛名称
+    level = models.CharField(max_length=10, choices=LEVEL_CHOICES)  # 竞赛等级
+    is_other = models.BooleanField(default=False)  # 是否是学院规定包含的竞赛
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending_report')  # 审核状态
+    report_date = models.DateTimeField(auto_now_add=True)  # 无需报备时间，由数据库自动填入
+    competition_start = models.DateTimeField()  # 比赛时间
+    competition_end = models.DateTimeField()  # 比赛时间
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)  # 负责老师外键
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)  # 报备学生外键
+
+    def clean(self):
+        super().clean()
+        if self.status not in dict(self.STATUS_CHOICES):
+            raise ValidationError(f'Invalid status: {self.status}. Must be one of {self.STATUS_CHOICES}.')
+        
     class Meta:
-        db_table = 'Reportcompetition'
+        managed = True
         constraints = [
-            models.CheckConstraint(check=Q(status__in=[choice[0] for choice in STATUS_CHOICES]), name='valid_status_constraint'),
-            models.CheckConstraint(check=Q(level__in=[choice[0] for choice in LEVEL_CHOICES]), name='report_valid_level_constraint')
+            models.CheckConstraint(
+                check=Q(status__in=[choice[0] for choice in STATUS_CHOICES]),
+                name='valid_status_constraint'
+            ),
+            models.CheckConstraint(
+                check=Q(level__in=[choice[0] for choice in LEVEL_CHOICES]),
+                name='report_valid_level_constraint'  # 更改名称以反映约束的内容
+            ),
         ]
 
     def __str__(self):
         return f"{self.name} - {self.status}"
 
 
-class RecordCompetition(models.Model):      
-    RecordID = models.AutoField(primary_key=True)
-    report_competition = models.OneToOneField(ReportCompetition, on_delete=models.CASCADE)
-    summary = models.TextField()
-    reimbursement_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True)
-    submission_time = models.DateTimeField(auto_now_add=True)
+def upload_to(instance, filename, subfolder, judge_function):
+    ext = filename.split('.')[-1]  # 获取文件扩展名
+    if not judge_function(ext):
+        raise ValidationError(f"{ext} 不符合文件格式规范。")
+    base_filename = os.path.splitext(filename)[0]  # 获取文件名，不包括扩展名
+    unique_filename = f"{base_filename}_{uuid.uuid4()}.{ext}"  # 保留原始文件名一部分
+    return os.path.join(subfolder, unique_filename)
+
+def upload_to_photo(instance, filename):
+    return upload_to(instance, filename, 'competition_photos', RecordCompetition.judge_image_type)
+
+def upload_to_certificate(instance, filename):
+    return upload_to(instance, filename, 'competition_certificates', RecordCompetition.judge_image_type)
+
+def upload_to_proof(instance, filename):
+    return upload_to(instance, filename, 'reimbursement_proof', RecordCompetition.judge_image_type)
+
+def upload_to_summary(instance, filename):
+    return upload_to(instance, filename, 'competition_summaries', RecordCompetition.judge_file_type)
+
+
+class RecordCompetition(models.Model):      #学生上传竞赛记录库
+    
+    @staticmethod
+    def judge_image_type(ext):
+        return ext in ['jpg', 'png', 'jpeg']
 
     @staticmethod
-    def validate_upload(file, valid_types):
-        ext = file.name.split('.')[-1].lower()
-        if not validate_file_type(ext, valid_types):
-            raise ValidationError(f"{ext} 不符合文件格式规范。")
-        if file.size > 10 * 1024 * 1024:  # 10MB 限制
-            raise ValidationError('文件大小不能超过10MB。')
+    def judge_file_type(ext):
+        return ext in ['pdf', 'doc', 'docx']
 
-    class Meta:
-        db_table = 'RecordCompetition'
+    def validate_image_ext(self, image):
+        ext = image.name.split('.')[-1].lower()
+        if not self.judge_image_type(ext):
+            raise ValidationError(f"{ext} 不符合图片格式规范。")
+
+    def validate_image_size(self, image):
+        if image.size > 10 * 1024 * 1024:  # 10MB
+            raise ValidationError('图片大小不能超过10MB。')
+        
+    def validate_file_ext(self, file):
+        ext = file.name.split('.')[-1].lower()
+        if not self.judge_file_type(ext):
+            raise ValidationError(f"{ext} 不符合文件格式规范。")
+        
+    def validate_file_size(self, file):
+        if file.size > 10 * 1024 * 1024:  # 10MB
+            raise ValidationError('文件大小不能超过10MB。')
+        
+    RecordID = models.AutoField(primary_key=True)  #主键TIME_ZONE = 'Asia/Shanghai' 和 USE_TZ = False
+    report_competition = models.OneToOneField(ReportCompetition, on_delete=models.CASCADE)  # 一对一关系
+    summary = models.TextField() # 比赛总结
+    reimbursement_amount = models.DecimalField(max_digits=10, decimal_places=2)  # 报销金额
+    submission_time = models.DateTimeField(auto_now_add=True)  # 提交时间
+
 
     def __str__(self):
         return f"Record of {self.report_competition.name} by {self.report_competition.student.user.username}"
+    
+#竞赛记录库中的图片和文件
+class PhotoOfRecord(models.Model):
+    record = models.ForeignKey(RecordCompetition, on_delete=models.CASCADE)  # 一对一关系
+    photo = models.ImageField(upload_to=upload_to_photo, validators=[RecordCompetition.validate_image_ext, RecordCompetition.validate_image_size],null=True, blank=True)  # 比赛照片，可以不上传
 
-
-class FileUploadMixin(models.Model):
-    """文件上传混合类，为各文件定义通用的保存逻辑"""
-    def save(self, *args, **kwargs):
-        file_field = getattr(self, self._meta.get_field('file').name)
-        RecordCompetition.validate_upload(file_field, self.valid_types)
-        super().save(*args, **kwargs)
-
-    class Meta:
-        abstract = True
-
-
-def upload_photo_path(instance, filename):
-    return generate_upload_path(instance, filename, 'competition_photos', ['jpg', 'jpeg', 'png'])
-
-def upload_proof_path(instance, filename):
-    return generate_upload_path(instance, filename, 'reimbursement_proof', ['jpg', 'jpeg', 'png'])
-
-def upload_certificate_path(instance, filename):
-    return generate_upload_path(instance, filename, 'competition_certificates', ['pdf', 'doc', 'docx'])
-
-class PhotoOfRecord(FileUploadMixin):
-    record = models.ForeignKey(RecordCompetition, on_delete=models.CASCADE)
-    photo = models.ImageField(upload_to=upload_photo_path)
-    valid_types = ['jpg', 'jpeg', 'png']
-
-class ProofOfRecord(FileUploadMixin):
-    record = models.ForeignKey(RecordCompetition, on_delete=models.CASCADE)
-    proof = models.ImageField(upload_to=upload_proof_path)
-    valid_types = ['jpg', 'jpeg', 'png']
-
-class CertificateOfRecord(FileUploadMixin):
-    record = models.ForeignKey(RecordCompetition, on_delete=models.CASCADE)
-    certificate = models.FileField(upload_to=upload_certificate_path)
-    valid_types = ['pdf', 'doc', 'docx']
-
-
-
+class ProofOfRecord(models.Model):
+    record = models.ForeignKey(RecordCompetition, on_delete=models.CASCADE)  # 一对一关系
+    proof = models.ImageField(upload_to=upload_to_proof, validators=[RecordCompetition.validate_image_ext, RecordCompetition.validate_image_size],null=True, blank=True)  # 比赛照片，可以不上传
+    
+class CertificateOfRecord(models.Model):
+    record = models.ForeignKey(RecordCompetition, on_delete=models.CASCADE)  # 一对一关系
+    certificate = models.FileField(upload_to=upload_to_certificate,validators=[RecordCompetition.validate_file_ext, RecordCompetition.validate_file_size], null=True, blank=True)  # 证书，可以不上传
 @receiver(post_delete, sender=ProofOfRecord)
 @receiver(post_delete, sender=PhotoOfRecord)
 @receiver(post_delete, sender=CertificateOfRecord)
