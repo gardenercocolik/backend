@@ -24,24 +24,28 @@ class RecordListView(View):
             try:
                 student = user.student_profile  # 使用 'student_profile' 获取对应的学生
                 data = ReportCompetition.objects.filter(student=student)
-                reports = []  # 初始化报备记录列表
-                for report in data.values():
-                    reports.append({
-                        'ReportID': report['ReportID'],
-                        'name': report['name'],
-                        'level': report['level'],
-                        'report_date': report['report_date'].strftime('%Y-%m-%d %H:%M'),
-                        'status': report['status']
-                    })
-                return JsonResponse({'data': reports})  # 返回报备记录
             except Student.DoesNotExist:
                 return JsonResponse({'error': '该用户没有关联的学生档案'}, status=404)
         elif user.identity == CustomUser. TEACHER:
             try:
                 teacher = user.teacher_profile
-                reports = ReportCompetition.objects.filter(teacher=teacher, status="pending_record")
+                data = ReportCompetition.objects.filter(teacher=teacher)
             except Teacher.DoesNotExist:
                 return JsonResponse({'error': '该用户没有关联的教师档案'}, status=404)
+        
+        reports = []  # 初始化报备记录列表
+        for report in data.values():
+            reports.append({
+                'ReportID': report['ReportID'],
+                'report_date': report['report_date'].strftime('%Y-%m-%d %H:%M'),  # 格式化为 YYYY-MM-DD HH:MM
+                'name': report['name'],
+                'level': report['level'],
+                'status': report['status'],
+                'teacher_id': report['teacher_id'],
+                'student_id': student.student_id,
+                'student_name': user.last_name + user.first_name
+            })
+        return JsonResponse({'data': reports})  # 返回报备记录
         
 
         
@@ -102,12 +106,15 @@ class RecordSubmitView(View):
             # 创建新的 competition_record 对象（无论是否找到并删除了已有记录）
             competition_record = RecordCompetition(
                 report_competition=report_competition,
-                # 更新记录的基础字段
                 submission_time=timezone.now(),  # 手动赋值提交时间
                 summary = summary,
                 reimbursement_amount = reimbursement,
             )
+            
             competition_record.save()  # 保存新创建的对象
+            competition_record.report_competition.status = "pending_record"
+            report_competition.save()
+            
             logger.info(f"Created new record for report ID {competition_record.RecordID}")
 
             

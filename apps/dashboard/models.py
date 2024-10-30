@@ -147,10 +147,16 @@ class CertificateOfRecord(models.Model):
 @receiver(post_delete, sender=PhotoOfRecord)
 @receiver(post_delete, sender=CertificateOfRecord)
 def delete_file_on_record_delete(sender, instance, **kwargs):
-    file_field = getattr(instance, instance._meta.get_field('file').name, None)
-    if file_field and file_field.path and os.path.isfile(file_field.path):
-        try:
-            os.remove(file_field.path)
-            print(f"Deleted file: {file_field.path}")
-        except Exception as e:
-            print(f"Error deleting file: {file_field.path} - {e}")
+    # 针对图片和文件分别检查字段
+    file_fields = ['photo', 'proof','certificate']
+    for field in file_fields:
+        # 检查实例是否有指定的字段，并确保字段不为空
+        if hasattr(instance, field) and getattr(instance, field):
+            file_path = getattr(instance, field).path
+            # 确认文件存在然后删除
+            if os.path.isfile(file_path):
+                try:
+                    os.remove(file_path)
+                    print(f"Deleted {field} file: {file_path}")
+                except Exception as e:
+                    print(f"Error deleting {field} file: {file_path} - {e}")
