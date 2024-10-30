@@ -133,15 +133,15 @@ class RecordCompetition(models.Model):      #学生上传竞赛记录库
     
 #竞赛记录库中的图片和文件
 class PhotoOfRecord(models.Model):
-    record = models.ForeignKey(RecordCompetition, on_delete=models.CASCADE)  # 一对一关系
+    record = models.ForeignKey(RecordCompetition, on_delete=models.CASCADE)  
     photo = models.ImageField(upload_to=upload_to_photo, validators=[RecordCompetition.validate_image_ext, RecordCompetition.validate_image_size],null=True, blank=True)  # 比赛照片，可以不上传
 
 class ProofOfRecord(models.Model):
-    record = models.ForeignKey(RecordCompetition, on_delete=models.CASCADE)  # 一对一关系
+    record = models.ForeignKey(RecordCompetition, on_delete=models.CASCADE)  
     proof = models.ImageField(upload_to=upload_to_proof, validators=[RecordCompetition.validate_image_ext, RecordCompetition.validate_image_size],null=True, blank=True)  # 比赛照片，可以不上传
     
 class CertificateOfRecord(models.Model):
-    record = models.ForeignKey(RecordCompetition, on_delete=models.CASCADE)  # 一对一关系
+    record = models.ForeignKey(RecordCompetition, on_delete=models.CASCADE)  
     certificate = models.FileField(upload_to=upload_to_certificate,validators=[RecordCompetition.validate_file_ext, RecordCompetition.validate_file_size], null=True, blank=True)  # 证书，可以不上传
 @receiver(post_delete, sender=ProofOfRecord)
 @receiver(post_delete, sender=PhotoOfRecord)

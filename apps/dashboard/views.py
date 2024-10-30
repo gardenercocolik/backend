@@ -26,7 +26,7 @@ class RecordListView(View):
                 data = ReportCompetition.objects.filter(student=student)
             except Student.DoesNotExist:
                 return JsonResponse({'error': '该用户没有关联的学生档案'}, status=404)
-        elif user.identity == CustomUser. TEACHER:
+        elif user.identity == CustomUser.TEACHER:
             try:
                 teacher = user.teacher_profile
                 data = ReportCompetition.objects.filter(teacher=teacher)
@@ -35,16 +35,44 @@ class RecordListView(View):
         
         reports = []  # 初始化报备记录列表
         for report in data.values():
-            reports.append({
-                'ReportID': report['ReportID'],
-                'report_date': report['report_date'].strftime('%Y-%m-%d %H:%M'),  # 格式化为 YYYY-MM-DD HH:MM
-                'name': report['name'],
-                'level': report['level'],
-                'status': report['status'],
-                'teacher_id': report['teacher_id'],
-                'student_id': student.student_id,
-                'student_name': user.last_name + user.first_name
-            })
+            student = Student.objects.get(user_id=report['student_id'])
+            try:
+                record = RecordCompetition.objects.get(report_competition=report['ReportID'])
+                photo = PhotoOfRecord.objects.filter(record=record)
+                certificate = CertificateOfRecord.objects.filter(record=record)
+                proof = ProofOfRecord.objects.filter(record=record)
+
+                user = student.user
+                logger.info(photo)
+                reports.append({
+                    'ReportID': report['ReportID'],
+                    'report_date': report['report_date'].strftime('%Y-%m-%d %H:%M'),  # 格式化为 YYYY-MM-DD HH:MM
+                    'name': report['name'],
+                    'level': report['level'],
+                    'status': report['status'],
+                    'teacher_id': report['teacher_id'],
+                    'student_id': student.student_id,
+                    'student_name': user.last_name + user.first_name,
+                    'summary': record.summary,
+                    'reimbursement_amount': record.reimbursement_amount,
+                    'submission_time': record.submission_time.strftime('%Y-%m-%d %H:%M'),  # 格式化为 YYYY-MM-DD HH:MM
+                    'photos': [photo.photo.url for photo in photo],
+                    'certificate': [certificate.certificate.url for certificate in certificate],
+                    'proofs': [proof.proof.url for proof in proof],
+                })
+                logger.info(reports)
+            except RecordCompetition.DoesNotExist:
+                user = student.user
+                reports.append({
+                    'ReportID': report['ReportID'],
+                    'report_date': report['report_date'].strftime('%Y-%m-%d %H:%M'),  # 格式化为 YYYY-MM-DD HH:MM
+                    'name': report['name'],
+                    'level': report['level'],
+                    'status': report['status'],
+                    'teacher_id': report['teacher_id'],
+                    'student_id': student.student_id,
+                    'student_name': user.last_name + user.first_name,
+                })
         return JsonResponse({'data': reports})  # 返回报备记录
         
 
@@ -59,15 +87,33 @@ class RecordApproveView(View):
 
         # 执行批准操作
         try:
-            record = RecordCompetition.objects.get(ReportID=ReportID)
-            record.status = "approved_record"
-            record.save()
+            report = ReportCompetition.objects.get(ReportID=ReportID)
+            report.status = "approved_record"
+            report.save()
             return JsonResponse({'message': '记录已批准', 'id': ReportID})
         except ReportCompetition.DoesNotExist:
             return JsonResponse({'message': '记录不存在', 'id': None})
         except Exception as e:
             return JsonResponse({'message': '更新失败', 'id': None, 'error': str(e)})   
-# 记录拒绝    
+        
+# 记录拒绝  
+class RecordRejectView(View):
+    def post(self, request):
+        body = json.loads(request.body)
+        ReportID = body.get('ReportID')
+        logger.info(f"收到的参数: {ReportID}")
+        # 执行批准操作
+        try:
+            report = ReportCompetition.objects.get(ReportID=ReportID)
+            report.status = "rejected_record"
+            report.save()
+            return JsonResponse({'message': '记录已拒绝', 'id': ReportID})
+        except RecordCompetition.DoesNotExist:
+            return JsonResponse({'message': '记录不存在', 'id': None})
+        except Exception as e:
+            return JsonResponse({'message': '更新失败', 'id': None, 'error': str(e)})
+
+
 # 记录提交
 class RecordSubmitView(View):
 
