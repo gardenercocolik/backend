@@ -552,6 +552,7 @@ class RecordGeneratePdfView(View):
 
         # 保存到数据库
         pdfOfRecord = PdfOfRecord.objects.create(record_competition=record_competition, pdf=pdf)
+        logger.info(f" :{pdfOfRecord}")
 
         #  删除临时文件
         os.remove(file_path)
