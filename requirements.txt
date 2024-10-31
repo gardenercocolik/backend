@@ -5,3 +5,6 @@ djangorestframework
 djangorestframework-jwt
 django-cors-headers
 pillow
+xhtml2pdf
+python-docx
+docx2pdf

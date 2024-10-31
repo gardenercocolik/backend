@@ -1,15 +1,25 @@
+import os
 from django.http import JsonResponse
 from django.views import View
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.utils import timezone
+import docx2pdf
 
-from .models import ReportCompetition, RecordCompetition, MainCompetition, ProofOfRecord, PhotoOfRecord, CertificateOfRecord
+from core.settings.base import TEMPLATE_DOCX_PATH, MEDIA_ROOT
+
+from .models import PdfOfRecord, ReportCompetition, RecordCompetition, MainCompetition, ProofOfRecord, PhotoOfRecord, CertificateOfRecord
 from .unit import get_user, check_login
 
 
 from users.models import CustomUser, Student, Teacher
 import json
 import logging
+from xhtml2pdf import pisa
+from docx import Document
+from django.template.loader import get_template
+from docx.shared import Inches
+
+
 
 logger = logging.getLogger("django")
 
@@ -434,3 +444,124 @@ class UpdateUserInfoView(View):
 
         except Exception as e:
             return JsonResponse({'error': str(e)})
+
+class RecordProducePdfView(View):
+    def post(self, request):
+        user = get_user(request)
+        check_login(user)
+        template_path = TEMPLATE_DOCX_PATH
+
+        #获取用户信息
+        if user.identity == CustomUser.STUDENT:
+                student = user.student_profile
+        else:
+            return JsonResponse({'error': '该用户没有关联的学生档案'}, status=404)
+        
+        try:
+            # 直接从 request.POST 中获取数据
+            logger.info(f"收到的参数: {request.POST}")
+            ReportID = request.POST.get('ReportID')
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
+        
+        
+        try:
+            # 进一步从数据库获取数据
+            temp_doc = Document(template_path)# 读取模板文件，并且创建副本
+
+            student_id = student.student_id
+            first_name = user.first_name
+            last_name = user.last_name
+
+            report = ReportCompetition.objects.get(ReportID=ReportID)
+
+            teacher = Teacher.objects.get(teacher_id=report.teacher.teacher_id)
+
+            competition_name = report.name
+            level = report.level
+            competition_start = report.competition_start
+            competition_end = report.competition_end
+
+            record_competition = RecordCompetition.objects.get(report_competition=report)
+            summary = record_competition.summary
+            certificates = CertificateOfRecord.objects.filter(record_competition=record_competition)
+            photos = PhotoOfRecord.objects.filter(record_competition=record_competition)
+            proof = ProofOfRecord.objects.filter(record_competition=record_competition)
+            reimbursement_amount = record_competition.reimbursement_amount
+        except ObjectDoesNotExist:
+            return JsonResponse({'error': '该记录不存在'}, status=404)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
+            
+        # 替换模板中的内容
+        try:
+            for paragraph in temp_doc.paragraphs:
+                if 'student_name' in paragraph.text:
+                    paragraph.text = paragraph.text.replace('student_name', last_name+first_name)
+                elif 'student_id' in paragraph.text:
+                    paragraph.text = paragraph.text.replace('student_id', student_id)
+                elif 'phone' in paragraph.text:
+                    paragraph.text = paragraph.text.replace('phone', user.phone)
+                elif 'email' in paragraph.text:
+                    paragraph.text = paragraph.text.replace('email', user.email)
+                elif 'competition_name' in paragraph.text:
+                    paragraph.text = paragraph.text.replace('competition_name', competition_name)
+                elif 'competition_start' in paragraph.text:
+                    paragraph.text = paragraph.text.replace('competition_start', competition_start)
+                elif 'competition_end' in paragraph.text:
+                    paragraph.text = paragraph.text.replace('competition_end', competition_end)
+                elif 'level' in paragraph.text:
+                    paragraph.text = paragraph.text.replace('level', level)
+                elif 'teacher_name' in paragraph.text:
+                    paragraph.text = paragraph.text.replace('teacher_name', teacher.user.last_name+teacher.user.first_name)
+                elif 'summary' in paragraph.text:
+                    paragraph.text = paragraph.text.replace('summary', summary)
+                elif 'reimbursement_amount' in paragraph.text:
+                    paragraph.text = paragraph.text.replace('reimbursement_amount', reimbursement_amount)
+                elif " " in paragraph.text:
+                    for photo_url in photos:
+                        photo_path = os.path.join(MEDIA_ROOT, photo_url.photo.url)
+                        logger.info(f" :{photo_path}")
+                        if os.path.exists(photo_path):
+                            paragraph.add_run().add_picture(photo_path, width=Inches(2.5))
+                elif " " in paragraph.text:
+                    for certificate_url in certificates:
+                        certificate_path = os.path.join(MEDIA_ROOT, certificate_url.certificate.url)
+                        logger.info(f" :{certificate_path}")
+                        if os.path.exists(certificate_path):
+                            paragraph.add_run().add_picture(certificate_path, width=Inches(2.5))
+                elif " " in paragraph.text:
+                    for proof_url in proof:
+                        proof_path = os.path.join(MEDIA_ROOT, proof_url.proof.url)
+                        logger.info(f" :{proof_path}")
+                        if os.path.exists(proof_path):
+                            paragraph.add_run().add_picture(proof_path, width=Inches(2.5))
+
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+        # 保存文档
+        file_path = os.path.join(MEDIA_ROOT, f'{last_name}{first_name} .docx')
+        temp_doc.save(file_path)
+        logger.info(f" :{file_path}")
+
+        #  pdf
+        pdf_path = os.path.join(MEDIA_ROOT, f'{last_name}{first_name} .pdf')
+        pdf = docx2pdf.convert(file_path, pdf_path)
+        logger.info(f" :{pdf_path}")
+
+        # 保存到数据库
+        pdfOfRecord = PdfOfRecord.objects.create(record_competition=record_competition, pdf=pdf)
+
+        #  删除临时文件
+        os.remove(file_path)
+
+        #  成功消息
+        return JsonResponse({'message': '生成pdf成功！'}, status=200)
+                        
+
+
+        
+
+            
+            

@@ -1,7 +1,7 @@
 # backend/apps/dashboard/urls.py
 
 from django.urls import path
-from .views import ReportListView, RecordListView, ReportCreateView, RecordSubmitView, ReturnCompetitionNameView, GetUserInfoView, UpdateUserInfoView, ReportApproveView, ReportRejectView, RecordApproveView, RecordRejectView
+from .views import ReportListView, RecordListView, ReportCreateView, RecordSubmitView, ReturnCompetitionNameView, GetUserInfoView, UpdateUserInfoView, ReportApproveView, ReportRejectView, RecordApproveView, RecordRejectView , RecordProducePdfView
 
 
 
@@ -12,6 +12,7 @@ urlpatterns = [
     path('reports/reject/', ReportRejectView.as_view(), name='report-reject'),
     path('reports/create/', ReportCreateView.as_view(), name='report-create'),
     path('records/submit/', RecordSubmitView.as_view(), name='record-submit'),
+    path('records/produce_pdf/', RecordProducePdfView.as_view(), name='record-produce-pdf'),
     path('records/approve/', RecordApproveView.as_view(), name='record-approve'),
     path('records/reject/', RecordRejectView.as_view(), name='record-reject'),
     path('reports/return-competition-name/', ReturnCompetitionNameView.as_view(), name='return-competition-name'),
