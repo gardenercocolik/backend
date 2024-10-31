@@ -153,7 +153,7 @@ class CertificateOfRecord(models.Model):
 @receiver(post_delete, sender=ProofOfRecord)
 @receiver(post_delete, sender=PhotoOfRecord)
 @receiver(post_delete, sender=CertificateOfRecord)
-def delete_file_on_record_delete(record):
+def delete_file_on_record_delete(instance,record,**kwargs):
     # 针对图片和文件分别检查字段
     file_fields = ['photo', 'proof','certificate']
     for field in file_fields:
