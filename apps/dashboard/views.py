@@ -445,7 +445,7 @@ class UpdateUserInfoView(View):
         except Exception as e:
             return JsonResponse({'error': str(e)})
 
-class RecordProducePdfView(View):
+class RecordGeneratePdfView(View):
     def post(self, request):
         user = get_user(request)
         check_login(user)
