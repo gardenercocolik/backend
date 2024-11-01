@@ -16,15 +16,10 @@ from .models import ReportCompetition, RecordCompetition, MainCompetition, Proof
 from .models import ReportCompetition, RecordCompetition, MainCompetition, ProofOfRecord, PhotoOfRecord, CertificateOfRecord
 from .unit import get_user, check_login
 
-
 from users.models import CustomUser, Student, Teacher
 import os
 import json
 import logging
-from xhtml2pdf import pisa
-from docx import Document
-from django.template.loader import get_template
-from docx.shared import Inches
 
 
 
