@@ -167,7 +167,3 @@ def delete_file_on_record_delete(instance,record,**kwargs):
                     print(f"Deleted {field} file: {file_path}")
                 except Exception as e:
                     print(f"Error deleting {field} file: {file_path} - {e}")
-
-class PdfOfRecord(models.Model):
-    record = models.ForeignKey(RecordCompetition, on_delete=models.CASCADE)  
-    pdf = models.FileField(upload_to=upload_to_pdf, null=True, blank=True)
