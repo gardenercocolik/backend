@@ -221,7 +221,7 @@ class RecordSubmitView(View):
                 for reimbursement_proof in proof:
                     ProofOfRecord.objects.create(record=competition_record, proof=reimbursement_proof)
 
-                return JsonResponse({'message': '记录提交成功!', 'id': competition_record.RecordID}, status=201)
+                return JsonResponse({'message': '记录提交成功!', 'status': 'success'}, status=201)
 
             except ValidationError as e:
                 logger.error(f"Validation error: {str(e)}")
