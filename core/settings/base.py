@@ -124,6 +124,11 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:15173',
 ]
 
+# 允许暴露 Content-Disposition 响应头
+CORS_EXPOSE_HEADERS = [
+    'Content-Disposition',
+]
+
 # CSRF
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:15173",
