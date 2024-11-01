@@ -1,3 +1,4 @@
+import os
 from django.conf import settings
 from django.http import JsonResponse
 from django.views import View
@@ -11,6 +12,8 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.units import inch
 from django.core.files.storage import default_storage
 from .models import ReportCompetition, RecordCompetition, MainCompetition, ProofOfRecord, PhotoOfRecord, CertificateOfRecord
+
+from .models import ReportCompetition, RecordCompetition, MainCompetition, ProofOfRecord, PhotoOfRecord, CertificateOfRecord
 from .unit import get_user, check_login
 
 
@@ -18,6 +21,12 @@ from users.models import CustomUser, Student, Teacher
 import os
 import json
 import logging
+from xhtml2pdf import pisa
+from docx import Document
+from django.template.loader import get_template
+from docx.shared import Inches
+
+
 
 logger = logging.getLogger("django")
 

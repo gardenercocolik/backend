@@ -44,7 +44,7 @@ class ReportCompetition(models.Model):      #竞赛报备记录
     level = models.CharField(max_length=10, choices=LEVEL_CHOICES)  # 竞赛等级
     is_other = models.BooleanField(default=False)  # 是否是学院规定包含的竞赛
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending_report')  # 审核状态
-    report_date = models.DateTimeField(auto_now_add=True)  # 无需报备时间，由数据库自动填入
+    report_date = models.DateTimeField(auto_now_add=True)  # 报备时间
     competition_start = models.DateTimeField()  # 比赛时间
     competition_end = models.DateTimeField()  # 比赛时间
     teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)  # 负责老师外键
@@ -92,6 +92,9 @@ def upload_to_proof(instance, filename):
 def upload_to_summary(instance, filename):
     return upload_to(instance, filename, 'competition_summaries', RecordCompetition.judge_file_type)
 
+def upload_to_pdf(instance, filename):
+    return upload_to(instance, filename, 'competition_pdf', RecordCompetition.judge_pdf_type)
+
 
 class RecordCompetition(models.Model):      #学生上传竞赛记录库
     
@@ -102,6 +105,10 @@ class RecordCompetition(models.Model):      #学生上传竞赛记录库
     @staticmethod
     def judge_file_type(ext):
         return ext in ['pdf', 'doc', 'docx']
+    
+    @staticmethod
+    def judge_pdf_type(ext):
+        return ext == 'pdf'
 
     def validate_image_ext(self, image):
         ext = image.name.split('.')[-1].lower()
@@ -121,7 +128,7 @@ class RecordCompetition(models.Model):      #学生上传竞赛记录库
         if file.size > 10 * 1024 * 1024:  # 10MB
             raise ValidationError('文件大小不能超过10MB。')
         
-    RecordID = models.AutoField(primary_key=True)  #主键TIME_ZONE = 'Asia/Shanghai' 和 USE_TZ = False
+    RecordID = models.AutoField(primary_key=True)  #主键
     report_competition = models.OneToOneField(ReportCompetition, on_delete=models.CASCADE)  # 一对一关系
     summary = models.TextField() # 比赛总结
     reimbursement_amount = models.DecimalField(max_digits=10, decimal_places=2)  # 报销金额
@@ -146,13 +153,13 @@ class CertificateOfRecord(models.Model):
 @receiver(post_delete, sender=ProofOfRecord)
 @receiver(post_delete, sender=PhotoOfRecord)
 @receiver(post_delete, sender=CertificateOfRecord)
-def delete_file_on_record_delete(sender, instance, **kwargs):
+def delete_file_on_record_delete(instance,record,**kwargs):
     # 针对图片和文件分别检查字段
     file_fields = ['photo', 'proof','certificate']
     for field in file_fields:
         # 检查实例是否有指定的字段，并确保字段不为空
-        if hasattr(instance, field) and getattr(instance, field):
-            file_path = getattr(instance, field).path
+        if hasattr(record, field) and getattr(record, field):
+            file_path = getattr(record, field).path
             # 确认文件存在然后删除
             if os.path.isfile(file_path):
                 try:
@@ -160,3 +167,7 @@ def delete_file_on_record_delete(sender, instance, **kwargs):
                     print(f"Deleted {field} file: {file_path}")
                 except Exception as e:
                     print(f"Error deleting {field} file: {file_path} - {e}")
+
+class PdfOfRecord(models.Model):
+    record = models.ForeignKey(RecordCompetition, on_delete=models.CASCADE)  
+    pdf = models.FileField(upload_to=upload_to_pdf, null=True, blank=True)

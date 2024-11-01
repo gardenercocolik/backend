@@ -9,6 +9,7 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
+import os
 import sys
 from pathlib import Path
 
@@ -42,10 +43,12 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     'rest_framework',
     'corsheaders',
+    
 
     # 自定义应用
     'users',
     'dashboard',
+
 ]
 
 MIDDLEWARE = [
@@ -150,3 +153,5 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL = 'users.CustomUser'
 
+# 使用 BASE_DIR 拼接出模版的相对路径 
+TEMPLATE_DOCX_PATH = os.path.join(BASE_DIR, 'media', 'template.docx') 

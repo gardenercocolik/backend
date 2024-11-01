@@ -5,4 +5,10 @@ djangorestframework
 djangorestframework-jwt
 django-cors-headers
 pillow
+<<<<<<< HEAD
 reportlab
+=======
+xhtml2pdf
+python-docx
+docx2pdf
+>>>>>>> 182739177bae9e502cad0b11681f046c562d06bc
