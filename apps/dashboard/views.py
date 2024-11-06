@@ -51,12 +51,12 @@ class RecordListView(View):
             try:
                 record = RecordCompetition.objects.get(report_competition=report['ReportID'])
                 photo = PhotoOfRecord.objects.filter(record=record)
-                logger.info([photo.photo.url for photo in photo])
+                # logger.info([photo.photo.url for photo in photo])
                 certificate = CertificateOfRecord.objects.filter(record=record)
                 proof = ProofOfRecord.objects.filter(record=record)
 
                 user = student.user
-                logger.info(photo)
+                # logger.info(photo)
                 reports.append({
                     'ReportID': report['ReportID'],
                     'report_date': report['report_date'].strftime('%Y-%m-%d %H:%M'),  # 格式化为 YYYY-MM-DD HH:MM
@@ -73,7 +73,7 @@ class RecordListView(View):
                     'certificate': [URL + certificate.certificate.url for certificate in certificate],
                     'proofs': [URL + proof.proof.url for proof in proof],
                 })
-                logger.info(reports)
+                # logger.info(reports)
             except RecordCompetition.DoesNotExist:
                 user = student.user
                 reports.append({
@@ -96,7 +96,7 @@ class RecordApproveView(View):
     def post(self, request):
         body = json.loads(request.body)
         ReportID = body.get('ReportID')
-        logger.info(f"收到的参数: {ReportID}")
+        # logger.info(f"收到的参数: {ReportID}")
 
         # 执行批准操作
         try:
@@ -114,7 +114,7 @@ class RecordRejectView(View):
     def post(self, request):
         body = json.loads(request.body)
         ReportID = body.get('ReportID')
-        logger.info(f"收到的参数: {ReportID}")
+        # logger.info(f"收到的参数: {ReportID}")
         # 执行批准操作
         try:
             report = ReportCompetition.objects.get(ReportID=ReportID)
@@ -138,7 +138,7 @@ class RecordSubmitView(View):
             # 从 POST 数据中获取值
             ReportID = request.POST.get("ReportID")
             reimbursement = request.POST.get("reimbursement")
-            logger.info(f"收到的参数: ReportID={ReportID}, reimbursement={reimbursement}")
+            # logger.info(f"收到的参数: ReportID={ReportID}, reimbursement={reimbursement}")
             summary = request.POST.get("summary")
 
             # 处理上传的文件
@@ -280,7 +280,7 @@ class ReportApproveView(View):
     def post(self, request):
         body = json.loads(request.body)
         ReportID = body.get('ReportID')
-        logger.info(f"收到的参数: {ReportID}")
+        # logger.info(f"收到的参数: {ReportID}")
 
         # 执行批准操作
         try:
@@ -298,7 +298,7 @@ class ReportRejectView(View):
     def post(self, request):
         body = json.loads(request.body)
         ReportID = body.get('ReportID')
-        logger.info(f"收到的参数: {ReportID}")
+        # logger.info(f"收到的参数: {ReportID}")
 
         # 执行拒绝操作
         try:
