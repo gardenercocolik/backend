@@ -22,7 +22,7 @@ import json
 import logging
 
 
-
+URL = "localhost:18000"
 logger = logging.getLogger("django")
 
 # 记录列表
@@ -51,6 +51,7 @@ class RecordListView(View):
             try:
                 record = RecordCompetition.objects.get(report_competition=report['ReportID'])
                 photo = PhotoOfRecord.objects.filter(record=record)
+                logger.info([photo.photo.url for photo in photo])
                 certificate = CertificateOfRecord.objects.filter(record=record)
                 proof = ProofOfRecord.objects.filter(record=record)
 
@@ -68,9 +69,9 @@ class RecordListView(View):
                     'summary': record.summary,
                     'reimbursement_amount': record.reimbursement_amount,
                     'submission_time': record.submission_time.strftime('%Y-%m-%d %H:%M'),  # 格式化为 YYYY-MM-DD HH:MM
-                    'photos': [photo.photo.url for photo in photo],
-                    'certificate': [certificate.certificate.url for certificate in certificate],
-                    'proofs': [proof.proof.url for proof in proof],
+                    'photos': [URL + photo.photo.url for photo in photo],
+                    'certificate': [URL + certificate.certificate.url for certificate in certificate],
+                    'proofs': [URL + proof.proof.url for proof in proof],
                 })
                 logger.info(reports)
             except RecordCompetition.DoesNotExist:
