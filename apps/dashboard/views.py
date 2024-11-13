@@ -64,6 +64,7 @@ class RecordListView(View):
                     'level': report['level'],
                     'status': report['status'],
                     'teacher_id': report['teacher_id'],
+                    'instructor_id': report['instructor_id'],
                     'student_id': student.student_id,
                     'student_name': user.last_name + user.first_name,
                     'summary': record.summary,
@@ -83,6 +84,7 @@ class RecordListView(View):
                     'level': report['level'],
                     'status': report['status'],
                     'teacher_id': report['teacher_id'],
+                    'instructor_id': report['instructor_id'],
                     'student_id': student.student_id,
                     'student_name': user.last_name + user.first_name,
                 })
@@ -269,6 +271,7 @@ class ReportListView(View):
                 'competition_start': report['competition_start'].strftime('%Y-%m-%d %H:%M'),  # 格式化为 YYYY-MM-DD HH:MM
                 'competition_end': report['competition_end'].strftime('%Y-%m-%d %H:%M'),  # 格式化为 YYYY-MM-DD HH:MM
                 'teacher_id': report['teacher_id'],
+                'instructor': report['instructor'],
                 'student_id': student.student_id,
                 'student_name': user.last_name + user.first_name
             })
@@ -322,6 +325,7 @@ class ReportCreateView(View):
             # 获取表单数据
             level = request.POST.get("level")
             name = request.POST.get("name")
+            instructor = request.POST.get("instructor")
             competition_start = request.POST.get("competition_start")
             competition_end = request.POST.get("competition_end")
             
@@ -353,6 +357,7 @@ class ReportCreateView(View):
             ReportCompetition.objects.create(
                 student=student,
                 teacher=teacher,
+                instructor=instructor,
                 level=level,
                 name=name,
                 is_other=is_other,
