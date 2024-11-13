@@ -47,6 +47,7 @@ class ReportCompetition(models.Model):      #竞赛报备记录
     report_date = models.DateTimeField(auto_now_add=True)  # 报备时间
     competition_start = models.DateTimeField()  # 比赛时间
     competition_end = models.DateTimeField()  # 比赛时间
+    instructor = models.CharField(max_length=255, null=True, blank=True)    #指导老师
     teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)  # 负责老师外键
     student = models.ForeignKey(Student, on_delete=models.CASCADE)  # 报备学生外键
 
