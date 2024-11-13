@@ -22,7 +22,7 @@ import json
 import logging
 
 
-URL = "localhost:18000"
+URL = "http://localhost:18000"
 logger = logging.getLogger("django")
 
 # 记录列表
