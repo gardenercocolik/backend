@@ -365,6 +365,32 @@ class ReportCreateView(View):
 
         except KeyError:
             return JsonResponse({'error': '缺少必要字段'}, status=400)
+
+# 报备删除
+class ReportDeleteView(View):
+    def post(self, request):
+        try:
+            # 获取登录用户
+            user = get_user(request)
+            check_login(user)
+            
+            # 获取表单数据
+            ReportID = request.POST.get("ReportID")
+            logger.info(f"收到的ReportID: {ReportID}")
+            
+            # 根据当前用户获取学生
+            student = user.student_profile
+
+            # 根据报备ID获取报备记录
+            report_competition = ReportCompetition.objects.get(ReportID=ReportID, student=student)
+
+            # 删除报备记录
+            report_competition.delete()
+
+            return JsonResponse({'status': 'success', 'message': '删除成功!'}, status=200)
+
+        except ReportCompetition.DoesNotExist:
+            return JsonResponse({'error': '报备记录不存在!'}, status=404)
         
 # 根据比赛等级返回相应的比赛数据
 class ReturnCompetitionNameView(View):
@@ -436,17 +462,23 @@ class UpdateUserInfoView(View):
 
             if user.identity == CustomUser.STUDENT:
                 student = user.student_profile
-                student.student_id = userId
-                student.save()
+                try:
+                    student.student_id = userId
+                    student.save()
+                except:
+                    return JsonResponse({'error': '学号已存在!'}, status=400)
             elif user.identity == CustomUser.TEACHER:
                 teacher = user.teacher_profile
-                teacher.teacher_id = userId
-                teacher.save()
+                try:
+                    teacher.teacher_id = userId
+                    teacher.save()
+                except:
+                    return JsonResponse({'error': '教工号已存在!'}, status=400)
 
             return JsonResponse({'message': '信息更新成功!', 'code': 201})
 
         except Exception as e:
-            return JsonResponse({'error': str(e)})
+            return JsonResponse({'error': str(e), 'code': 403})
 
 # 生成pdf
 class GeneratePDFView(View):
