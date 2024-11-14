@@ -64,7 +64,7 @@ class RecordListView(View):
                     'level': report['level'],
                     'status': report['status'],
                     'teacher_id': report['teacher_id'],
-                    'instructor_id': report['instructor_id'],
+                    'instructor': report['instructor'],
                     'student_id': student.student_id,
                     'student_name': user.last_name + user.first_name,
                     'summary': record.summary,
@@ -84,7 +84,7 @@ class RecordListView(View):
                     'level': report['level'],
                     'status': report['status'],
                     'teacher_id': report['teacher_id'],
-                    'instructor_id': report['instructor_id'],
+                    'instructor': report['instructor'],
                     'student_id': student.student_id,
                     'student_name': user.last_name + user.first_name,
                 })
