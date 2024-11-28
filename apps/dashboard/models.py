@@ -134,8 +134,6 @@ class RecordCompetition(models.Model):      #学生上传竞赛记录库
     summary = models.TextField() # 比赛总结
     reimbursement_amount = models.DecimalField(max_digits=10, decimal_places=2)  # 报销金额
     submission_time = models.DateTimeField(auto_now_add=True)  # 提交时间
-
-
     def __str__(self):
         return f"Record of {self.report_competition.name} by {self.report_competition.student.user.username}"
     
@@ -151,6 +149,16 @@ class ProofOfRecord(models.Model):
 class CertificateOfRecord(models.Model):
     record = models.ForeignKey(RecordCompetition, on_delete=models.CASCADE)  
     certificate = models.FileField(upload_to=upload_to_certificate,validators=[RecordCompetition.validate_file_ext, RecordCompetition.validate_file_size], null=True, blank=True)  # 证书，可以不上传
+
+class PDFproofOfRecord(models.Model):
+    record = models.ForeignKey(RecordCompetition, on_delete=models.CASCADE) 
+    pdf = models.FileField(
+        upload_to=upload_to_pdf,  # 动态生成路径
+        null=True, 
+        blank=True
+    )
+def upload_to_pdf(instance, filename):
+    return f"competition_records/{instance.record.RecordID}/pdf/{filename}"
 @receiver(post_delete, sender=ProofOfRecord)
 @receiver(post_delete, sender=PhotoOfRecord)
 @receiver(post_delete, sender=CertificateOfRecord)

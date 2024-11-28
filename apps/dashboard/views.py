@@ -1,8 +1,9 @@
 import os
 from django.conf import settings
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.views import View
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.core.files.base import ContentFile
 from django.utils import timezone
 import io
 from django.http import FileResponse
@@ -10,8 +11,9 @@ from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.units import inch
+from reportlab.lib.pagesizes import A4
 from django.core.files.storage import default_storage
-from .models import ReportCompetition, RecordCompetition, MainCompetition, ProofOfRecord, PhotoOfRecord, CertificateOfRecord
+from .models import PDFproofOfRecord,ReportCompetition, RecordCompetition, MainCompetition, ProofOfRecord, PhotoOfRecord, CertificateOfRecord
 
 from .models import ReportCompetition, RecordCompetition, MainCompetition, ProofOfRecord, PhotoOfRecord, CertificateOfRecord
 from .unit import get_user, check_login
@@ -485,138 +487,200 @@ class UpdateUserInfoView(View):
         except Exception as e:
             return JsonResponse({'error': str(e), 'code': 403})
 
-# 生成pdf
-class GeneratePDFView(View):
+def generate_pdf_file(ReportID):
+        # 获取报备记录
+    report_competition = ReportCompetition.objects.get(ReportID=ReportID)
+    # 获取竞赛名称
+    competition_name = report_competition.name
+    # 获取竞赛等级
+    competition_level = report_competition.level
+    # 获取竞赛开始时间
+    competition_start = report_competition.competition_start
+    # 获取竞赛结束时间
+    competition_end = report_competition.competition_end
+    # 获取负责教师
+    teacher = report_competition.teacher
+    # 获取负责老师的教工号
+    teacher_id = teacher.teacher_id
+    # 获取负责老师的姓名
+    teacher_name = teacher.user.last_name + teacher.user.first_name
+    # 获取学生
+    student = report_competition.student
+    # 获取学生的学号
+    student_id = student.student_id
+    # 获取学生的姓名
+    student_name = student.user.last_name + student.user.first_name
+    # 获取记录
+    record_competition = RecordCompetition.objects.get(report_competition=report_competition)
+    # 获取summary
+    summary = record_competition.summary
+    # 获取报销金额
+    reimbursement = record_competition.reimbursement_amount
+    # 获取证书
+    certificates = CertificateOfRecord.objects.filter(record=record_competition)
+    # 获取照片
+    photos = PhotoOfRecord.objects.filter(record=record_competition)
+    # 获取报销凭证
+    proof = ProofOfRecord.objects.filter(record=record_competition)
+    # 创建一个类文件缓冲区以接收PDF数据
+    buffer = io.BytesIO()
+    # 注册中文字体（假设使用了黑体，确保其路径正确）
+    font_path = os.path.join(settings.BASE_DIR, 'static/fonts/SimHei.ttf')  # 替换为你放置字体的实际路径
+    pdfmetrics.registerFont(TTFont('SimHei', font_path))
+    # 创建PDF对象，使用缓冲区作为其“文件”
+    p = canvas.Canvas(buffer)
+    p.setFont("SimHei", 12)
+
+    # 绘制文本信息
+    y_position = 800  # 初始 Y 轴位置
+    info_lines = [
+        f"Report ID: {ReportID}",
+        f"Competition Name: {competition_name}",
+        f"Competition Level: {competition_level}",
+        f"Competition Start: {competition_start}",
+        f"Competition End: {competition_end}",
+        f"Teacher ID: {teacher_id}",
+        f"Teacher Name: {teacher_name}",
+        f"Student ID: {student_id}",
+        f"Student Name: {student_name}",
+        f"Summary: {summary}",
+        f"Reimbursement Amount: {reimbursement}"
+    ]
+
+    for line in info_lines:
+        p.drawString(100, y_position, line)
+        y_position -= 20  # 每行下移 20 个单位
+
+    # 插入照片
+    y_position -= 20  # 留出空间
+    p.drawString(100, y_position, "Photos:")
+    y_position -= 30  # 照片标题下移
+    for photo in photos:
+        if photo.photo:  # 确保存在图片
+            image_path = default_storage.path(photo.photo.name)
+            # 获取图片高度
+            img_height = 2 * inch  # 设置图片高度
+            p.drawImage(image_path, x=100, y=y_position - img_height, width=2*inch, height=img_height)  # 从左上角绘制图片
+            y_position -= img_height + 10  # 下移到下一个图片位置（图片高度 + 间距）
+            if y_position < 50:  # 如果快到页面底部，换页
+                p.showPage()
+                p.setFont("SimHei", 12)
+                y_position = 800
+
+    # 插入证书
+    y_position -= 20  # 留出空间
+    p.drawString(100, y_position, "Certificates:")
+    y_position -= 30  # 证书标题下移
+    for certificate in certificates:
+        if certificate.certificate:  # 确保存在证书
+            certificate_path = default_storage.path(certificate.certificate.name)
+            img_height = 2 * inch  # 设置证书的高度
+            p.drawImage(certificate_path, x=100, y=y_position - img_height, width=2*inch, height=img_height)  # 从左上角绘制证书
+            y_position -= img_height + 10  # 下移到下一个证书位置（证书的高度 + 间距）
+            if y_position < 50:  # 如果快到页面底部，换页
+                p.showPage()
+                p.setFont("SimHei", 12)
+                y_position = 800
+    # 插入报销凭证
+    y_position -= 20  # 留出空间
+    p.drawString(100, y_position, "Reimbursement Proofs:")
+    y_position -= 30  # 凭证标题下移
+    for reimbursement_proof in proof:
+        if reimbursement_proof.proof:  # 确保存在凭证
+            reimbursement_proof_path = default_storage.path(reimbursement_proof.proof.name)
+            img_height = 2 * inch  # 设置凭证的高度
+            p.drawImage(reimbursement_proof_path, x=100, y=y_position - img_height, width=2*inch, height=img_height)  # 从左上角绘制凭证
+            y_position -= img_height + 10  # 下移到下一个凭证位置（凭证的高度 + 间距）
+            if y_position < 50:  # 如果快到页面底部，换页
+                p.showPage()
+                p.setFont("SimHei", 12)
+                y_position = 800
+    # 妥善关闭PDF对象，完成PDF生成
+    p.showPage()
+    p.save()
+
+    # 将缓冲区指针重置到开始位置
+    buffer.seek(0)
+    return buffer
+
+from django.db import transaction
+@transaction.atomic
+def save_pdf_to_record(record_competition,reportId):
+    logger.info(f"开始生成PDF文件")
+    pdf_buffer = generate_pdf_file(reportId)
+    # 确保为对应记录生成新的 PDFproofOfRecord
+    pdf_proof, created = PDFproofOfRecord.objects.get_or_create(record=record_competition)
+    pdf_name = f"record_{record_competition.RecordID}.pdf"
+
+    # 保存 PDF 文件
+    pdf_proof.pdf.save(pdf_name, ContentFile(pdf_buffer.read()), save=True)
+    pdf_buffer.close()
+
+class DownloadPDFView(View):
     def post(self, request, *args, **kwargs):
-        # 直接通过 request.POST 获取表单数据
         ReportID = request.POST.get("ReportID")
-        logger.info(f"收到的ReportID: {ReportID}")
-        
         try:
-            # 获取报备记录
+            logger.info(f"收到的ReportID: {ReportID}")
             report_competition = ReportCompetition.objects.get(ReportID=ReportID)
-            # 获取竞赛名称
-            competition_name = report_competition.name
-            # 获取竞赛等级
-            competition_level = report_competition.level
-            # 获取竞赛开始时间
-            competition_start = report_competition.competition_start
-            # 获取竞赛结束时间
-            competition_end = report_competition.competition_end
-            # 获取负责教师
-            teacher = report_competition.teacher
-            # 获取负责老师的教工号
-            teacher_id = teacher.teacher_id
-            # 获取负责老师的姓名
-            teacher_name = teacher.user.last_name + teacher.user.first_name
-            # 获取学生
-            student = report_competition.student
-            # 获取学生的学号
-            student_id = student.student_id
-            # 获取学生的姓名
-            student_name = student.user.last_name + student.user.first_name
-            # 获取记录
             record_competition = RecordCompetition.objects.get(report_competition=report_competition)
-            # 获取summary
-            summary = record_competition.summary
-            # 获取报销金额
-            reimbursement = record_competition.reimbursement_amount
-            # 获取证书
-            certificates = CertificateOfRecord.objects.filter(record=record_competition)
-            # 获取照片
-            photos = PhotoOfRecord.objects.filter(record=record_competition)
-            # 获取报销凭证
-            proof = ProofOfRecord.objects.filter(record=record_competition)
-
-
-        except ReportCompetition.DoesNotExist or RecordCompetition.DoesNotExist:
+            try:
+                pdf=PDFproofOfRecord.objects.get(record=record_competition)
+                if pdf.pdf:
+                    logger.info("PDF文件已存在")
+                    return self.get_pdf_response(pdf)
+            except PDFproofOfRecord.DoesNotExist:
+                logger.info("PDF文件不存在，将生成新的PDF")
+                save_pdf_to_record(record_competition, ReportID)
+                pdf=PDFproofOfRecord.objects.get(record=record_competition)
+                return self.get_pdf_response(pdf)
+        except (ReportCompetition.DoesNotExist, RecordCompetition.DoesNotExist):
             return JsonResponse({'error': '记录不存在!'}, status=404)
-        # 创建一个类文件缓冲区以接收PDF数据
-        buffer = io.BytesIO()
+        except Exception as e:
+            return JsonResponse({'error': f'内部错误: {str(e)}'}, status=500)
 
-        # 注册中文字体（假设使用了黑体，确保其路径正确）
-        font_path = os.path.join(settings.BASE_DIR, 'static/fonts/SimHei.ttf')  # 替换为你放置字体的实际路径
-        pdfmetrics.registerFont(TTFont('SimHei', font_path))
+    def get_pdf_response(self, pdf_record):
+    # 构建PDF响应，可以添加适当的逻辑来处理PDF的下载或显示
+        response = HttpResponse(pdf_record.pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{pdf_record.pdf.name}"'
+        return response
+   
+class PreviewPDFView(View):
+    def post(self, request, *args, **kwargs):
+        ReportID = request.POST.get("ReportID")
+        try:
+            logger.info(f"收到的ReportID: {ReportID}")
+            # 获取 report_competition 和 record_competition 对象
+            report_competition = ReportCompetition.objects.get(ReportID=ReportID)
+            record_competition = RecordCompetition.objects.get(report_competition=report_competition)
 
+            # 检查 PDF 文件是否存在
+            try:
+                pdf = PDFproofOfRecord.objects.get(record=record_competition)
+                if pdf.pdf:
+                    logger.info("PDF文件已存在，准备返回")
+                    # 返回 PDF 文件进行预览
+                    return self.get_pdf_response(pdf)
+            except PDFproofOfRecord.DoesNotExist:
+                # 如果 PDF 不存在，生成新的 PDF
+                logger.info("PDF文件不存在，生成新的PDF")
+                save_pdf_to_record(record_competition, ReportID)
+                
+                # 重新获取刚生成的 PDF 文件
+                pdf = PDFproofOfRecord.objects.get(record=record_competition)
+                return self.get_pdf_response(pdf)
+        
+        except (ReportCompetition.DoesNotExist, RecordCompetition.DoesNotExist):
+            logger.error("记录不存在!")
+            return JsonResponse({'error': '记录不存在!'}, status=404)
+        except Exception as e:
+            logger.error(f"内部错误: {str(e)}")
+            return JsonResponse({'error': f'内部错误: {str(e)}'}, status=500)
 
-        # 创建PDF对象，使用缓冲区作为其“文件”
-        p = canvas.Canvas(buffer)
-        p.setFont("SimHei", 12)
-
-        # 绘制文本信息
-        y_position = 800  # 初始 Y 轴位置
-        info_lines = [
-            f"Report ID: {ReportID}",
-            f"Competition Name: {competition_name}",
-            f"Competition Level: {competition_level}",
-            f"Competition Start: {competition_start}",
-            f"Competition End: {competition_end}",
-            f"Teacher ID: {teacher_id}",
-            f"Teacher Name: {teacher_name}",
-            f"Student ID: {student_id}",
-            f"Student Name: {student_name}",
-            f"Summary: {summary}",
-            f"Reimbursement Amount: {reimbursement}"
-        ]
-
-        for line in info_lines:
-            p.drawString(100, y_position, line)
-            y_position -= 20  # 每行下移 20 个单位
-
-        # 插入照片
-        y_position -= 20  # 留出空间
-        p.drawString(100, y_position, "Photos:")
-        y_position -= 30  # 照片标题下移
-        for photo in photos:
-            if photo.photo:  # 确保存在图片
-                image_path = default_storage.path(photo.photo.name)
-                # 获取图片高度
-                img_height = 2 * inch  # 设置图片高度
-                p.drawImage(image_path, x=100, y=y_position - img_height, width=2*inch, height=img_height)  # 从左上角绘制图片
-                y_position -= img_height + 10  # 下移到下一个图片位置（图片高度 + 间距）
-                if y_position < 50:  # 如果快到页面底部，换页
-                    p.showPage()
-                    p.setFont("SimHei", 12)
-                    y_position = 800
-
-        # 插入证书
-        y_position -= 20  # 留出空间
-        p.drawString(100, y_position, "Certificates:")
-        y_position -= 30  # 证书标题下移
-        for certificate in certificates:
-            if certificate.certificate:  # 确保存在证书
-                certificate_path = default_storage.path(certificate.certificate.name)
-                img_height = 2 * inch  # 设置证书的高度
-                p.drawImage(certificate_path, x=100, y=y_position - img_height, width=2*inch, height=img_height)  # 从左上角绘制证书
-                y_position -= img_height + 10  # 下移到下一个证书位置（证书的高度 + 间距）
-                if y_position < 50:  # 如果快到页面底部，换页
-                    p.showPage()
-                    p.setFont("SimHei", 12)
-                    y_position = 800
-        # 插入报销凭证
-        y_position -= 20  # 留出空间
-        p.drawString(100, y_position, "Reimbursement Proofs:")
-        y_position -= 30  # 凭证标题下移
-        for reimbursement_proof in proof:
-            if reimbursement_proof.proof:  # 确保存在凭证
-                reimbursement_proof_path = default_storage.path(reimbursement_proof.proof.name)
-                img_height = 2 * inch  # 设置凭证的高度
-                p.drawImage(reimbursement_proof_path, x=100, y=y_position - img_height, width=2*inch, height=img_height)  # 从左上角绘制凭证
-                y_position -= img_height + 10  # 下移到下一个凭证位置（凭证的高度 + 间距）
-                if y_position < 50:  # 如果快到页面底部，换页
-                    p.showPage()
-                    p.setFont("SimHei", 12)
-                    y_position = 800
-
-        # 妥善关闭PDF对象，完成PDF生成
-        p.showPage()
-        p.save()
-
-        # 将缓冲区指针重置到开始位置
-        buffer.seek(0)
-
-        # 设置响应头，以便浏览器识别为 PDF 文件
-        response = FileResponse(buffer, as_attachment=True, filename=f"{student_name.replace(' ', '')}---{competition_name.replace(' ', '')}报销证明材料.pdf")
-
-        # 返回FileResponse，以便浏览器提示下载文件
+    def get_pdf_response(self, pdf_record):
+        """返回 PDF 响应以供预览"""
+        logger.info(f"返回 PDF 文件: {pdf_record.pdf.name}")
+        
+        # 返回 PDF 文件内容，并设置为浏览器内联预览
+        response = HttpResponse(pdf_record.pdf, content_type='application/pdf')
+        response['Content-Disposition'] = 'inline; filename="preview.pdf"'  # inline 允许在浏览器中预览 PDF
         return response
