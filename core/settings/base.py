@@ -139,12 +139,6 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 
-# REST_FRAMEWORK
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-       'rest_framework_jwt.authentication.JSONWebTokenAuthentication',
-    ],
-}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
