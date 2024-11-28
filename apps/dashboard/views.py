@@ -11,10 +11,14 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.units import inch
 from django.core.files.storage import default_storage
-from .models import ReportCompetition, RecordCompetition, MainCompetition, ProofOfRecord, PhotoOfRecord, CertificateOfRecord
+from .models import ReportCompetition, RecordCompetition, MainCompetition, ProofOfRecord, PhotoOfRecord, CertificateOfRecord, Team, TeamMember
 
 from .models import ReportCompetition, RecordCompetition, MainCompetition, ProofOfRecord, PhotoOfRecord, CertificateOfRecord
 from .unit import get_user, check_login
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
 
 from users.models import CustomUser, Student, Teacher
 import os
@@ -326,10 +330,11 @@ class ReportCreateView(View):
             level = request.POST.get("level")
             name = request.POST.get("name")
             instructor = request.POST.get("instructor")
+            instructor_id = request.POST.get("instructor_id")
             competition_start = request.POST.get("competition_start")
             competition_end = request.POST.get("competition_end")
             
-            if not all([level, name, competition_start, competition_end]):
+            if not all([level, name, competition_start, competition_end, instructor, instructor_id]):
                 return JsonResponse({'error': '所有字段都是必填的'}, status=400)
 
             # 根据当前用户获取学生
@@ -358,6 +363,7 @@ class ReportCreateView(View):
                 student=student,
                 teacher=teacher,
                 instructor=instructor,
+                instructor_id=instructor_id,
                 level=level,
                 name=name,
                 is_other=is_other,
@@ -620,3 +626,58 @@ class GeneratePDFView(View):
 
         # 返回FileResponse，以便浏览器提示下载文件
         return response
+    
+class GetTeamsView(View):
+    def post(self, request):
+        # 获取登录用户
+        user = get_user(request)
+        check_login(user)
+
+        # 获取学生所在的队伍
+        teams = Team.objects.filter(user=user)
+
+        # 组装数据
+        data = []
+        for team in teams:
+            team_data = {
+                'team_id': team.id,
+                'team_name': team.team_name,
+                'leader': team.leader,
+                'team_members_name': [member.name for member in team.members.all() ]
+            }
+            data.append(team_data)
+
+        return JsonResponse({'data': data})
+    
+    
+class CreateTeamView(APIView):
+    def post(self, request):
+        # 获取登录用户
+        user = get_user(request)
+        check_login(user)
+
+        data = request.data  # DRF 自动解析 JSON
+        team_name = data.get('team_name', '')
+        leader = data.get('leader', '')
+        members = data.get('members', [])
+
+        # 示例：字段校验
+        if not team_name or not leader or members is None:
+            return Response({'error': 'all fields are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 处理逻辑...
+        # 创建队伍
+        team = Team.objects.create(
+            team_name=team_name,
+            leader=leader,
+            user = user
+        )
+
+        # 创建队员
+        for member in members:
+            team_member = TeamMember.objects.create(
+                team=team,
+                name=member
+            )
+
+        return Response({'message': 'Team created successfully'}, status=status.HTTP_201_CREATED)

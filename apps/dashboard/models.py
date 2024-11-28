@@ -3,7 +3,7 @@ from django.db import models
 from django.db.models import Q
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
-from users.models import Teacher, Student
+from users.models import Teacher, Student, CustomUser
 import os
 import uuid
 
@@ -36,6 +36,21 @@ class MainCompetition(models.Model):
     def __str__(self):
         return self.name
 
+class Team(models.Model):
+    team_name = models.CharField(max_length=100)
+    leader = models.CharField(max_length=100)    # 团队队长
+    user = models.ForeignKey(CustomUser,on_delete=models.CASCADE, null=True) # 团队创建者
+
+    def __str__(self):
+        return self.team_name
+
+class TeamMember(models.Model): # 包括队长
+    name = models.CharField(max_length=100)
+    student_id = models.CharField(max_length=20)
+    team = models.ForeignKey(Team, related_name='members', on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f"{self.name} ({self.student_id})"
 
 class ReportCompetition(models.Model):      #竞赛报备记录
 
@@ -48,8 +63,10 @@ class ReportCompetition(models.Model):      #竞赛报备记录
     competition_start = models.DateTimeField()  # 比赛时间
     competition_end = models.DateTimeField()  # 比赛时间
     instructor = models.CharField(max_length=255, null=True, blank=True)    #指导老师
-    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)  # 负责老师外键
-    student = models.ForeignKey(Student, on_delete=models.CASCADE)  # 报备学生外键
+    instructor_id = models.CharField(max_length=255, null=True, blank=True)    #指导老师教工号
+    team = models.ForeignKey(Team, null=True, blank=True, on_delete=models.SET_NULL)  # 参赛外键（个人赛可为空）
+    teacher = models.ForeignKey(Teacher, null=True, blank=True, on_delete=models.SET_NULL)  # 负责老师外键
+    student = models.ForeignKey(Student, null=True, blank=True, on_delete=models.SET_NULL)  # 报备学生外键
 
     def clean(self):
         super().clean()
